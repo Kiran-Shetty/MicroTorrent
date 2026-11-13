@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" data-density="comfortable">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MicroTorrent - Clean &amp; Ad-Free</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+
+    <!-- Top Toolbar (Clean Controls & Search — No Duplicate Speed Readouts) -->
+    <header class="toolbar">
+      <div class="toolbar-brand">
+        <span class="logo-icon">&#x21C5;</span>
+        <span class="brand-name">MicroTorrent</span>
+        <span class="badge-clean">Ad-Free</span>
+      </div>
+
+      <div class="toolbar-actions">
+        <button id="btn-add-file" class="btn btn-primary" title="Open .torrent file">
+          <span class="btn-icon">&#x1F4C2;</span> Add Torrent
+        </button>
+        <button id="btn-add-magnet" class="btn btn-secondary" title="Add Magnet Link">
+          <span class="btn-icon">&#x1F9F2;</span> Add Magnet
+        </button>
+        <input type="file" id="file-input" accept=".torrent" style="display:none">
+
+        <div class="divider"></div>
+
+        <button id="btn-resume" class="btn btn-icon-only" title="Resume Selected" aria-label="Resume Selected" disabled>&#x25B6;</button>
+        <button id="btn-pause" class="btn btn-icon-only" title="Pause Selected" aria-label="Pause Selected" disabled>&#x23F8;</button>
+        <button id="btn-stop" class="btn btn-icon-only" title="Stop Selected (Disconnect Peers &amp; Stop Seeding)" aria-label="Stop Selected" disabled>&#x23F9;</button>
+        <button id="btn-recheck" class="btn btn-icon-only" title="Force Re-check / Verify Files" aria-label="Force Re-check Files" disabled>&#x21BB;</button>
+        <button id="btn-delete" class="btn btn-icon-only btn-danger" title="Remove Selected (Del)" aria-label="Remove Selected" disabled>&#x1F5D1;</button>
+
+        <div class="divider"></div>
+
+        <button id="btn-sequential" class="btn" title="Download pieces in order for streaming / preview" disabled>
+          &#x26A1; Sequential: Off
+        </button>
+        <button id="btn-open-folder" class="btn" title="Open Selected Download Folder" disabled>
+          &#x1F4C1; Folder
+        </button>
+        <button id="btn-open-downloads" class="btn" title="Open Downloads Directory">
+          &#x1F4E5; Downloads
+        </button>
+
+        <div class="divider"></div>
+
+        <button id="btn-pause-all" class="btn btn-pause-all" title="Pause All Torrents">&#x23F8; Pause All</button>
+        <button id="btn-stop-all" class="btn btn-stop-all" title="Stop All Torrents (Disconnect Peers &amp; Seeding)">&#x23F9; Stop All</button>
+        <button id="btn-resume-all" class="btn btn-resume-all" title="Resume All Torrents">&#x25B6; Resume All</button>
+        <button id="btn-toggle-details" class="btn btn-icon-only" title="Toggle Details Panel" aria-label="Toggle Details Panel">&#x25E8;</button>
+        <button id="btn-settings" class="btn" title="Preferences &amp; Multi-Network Settings">
+          &#x2699; Settings
+        </button>
+      </div>
+
+      <div class="toolbar-search">
+        <input type="text" id="search-input" placeholder="Filter torrents (Ctrl+F)..." aria-label="Filter torrents">
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="workspace">
+
+      <!-- Left Sidebar Categories & Per-Adapter Breakdown -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-scroll">
+          <div class="sidebar-section">
+            <div class="sidebar-title">Categories</div>
+            <ul class="category-list" id="sidebar-categories">
+              <li class="active" data-filter="all">
+                <span class="cat-icon">&#x1F4E6;</span> All <span class="badge" id="count-all">0</span>
+              </li>
+              <li data-filter="downloading">
+                <span class="cat-icon">&#x2193;</span> Downloading <span class="badge" id="count-downloading">0</span>
+              </li>
+              <li data-filter="checking">
+                <span class="cat-icon">&#x1F50D;</span> Checking <span class="badge" id="count-checking">0</span>
+              </li>
+              <li data-filter="queued">
+                <span class="cat-icon">&#x23F3;</span> Queued <span class="badge" id="count-queued">0</span>
+              </li>
+              <li data-filter="seeding">
+                <span class="cat-icon">&#x2191;</span> Seeding <span class="badge" id="count-seeding">0</span>
+              </li>
+              <li data-filter="completed">
+                <span class="cat-icon">&#x2714;</span> Completed <span class="badge" id="count-completed">0</span>
+              </li>
+              <li data-filter="paused">
+                <span class="cat-icon">&#x23F8;</span> Paused <span class="badge" id="count-paused">0</span>
+              </li>
+              <li data-filter="stopped">
+                <span class="cat-icon">&#x23F9;</span> Stopped <span class="badge" id="count-stopped">0</span>
+              </li>
+              <li data-filter="active">
+                <span class="cat-icon">&#x26A1;</span> Active <span class="badge" id="count-active">0</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="sidebar-section" id="sidebar-tags-section" style="display:none;">
+            <div class="sidebar-title">Tags</div>
+            <ul class="category-list" id="sidebar-tags-list"></ul>
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-title" style="padding: 0 0 6px 0;">Adapters</div>
+          <div id="sidebar-interfaces" class="sidebar-interfaces"></div>
+        </div>
+      </aside>
+
+      <!-- Content Area -->
+      <main class="content-area">
+
+        <!-- Torrent Table Container -->
+        <div class="table-container">
+          <table class="torrent-table" id="torrent-table">
+            <thead id="torrent-table-head"></thead>
+            <tbody id="torrent-list"></tbody>
+          </table>
+
+          <div id="empty-state" class="empty-state">
+            <div class="empty-icon">&#x21C5;</div>
+            <div class="empty-title">No Torrents Added</div>
+            <div class="empty-sub">Drag and drop a <code>.torrent</code> file anywhere here, or click <strong>Add Magnet</strong> above.</div>
+          </div>
+        </div>
+
+        <!-- Details Panel at Bottom -->
+        <div class="details-panel" id="details-panel">
+          <div class="details-tabs">
+            <button class="tab-btn active" data-tab="general">General</button>
+            <button class="tab-btn" data-tab="files">Files (<span id="files-count">0</span>)</button>
+            <button class="tab-btn" data-tab="peers">Peers (<span id="peers-count">0</span>)</button>
+            <button class="tab-btn" data-tab="pieces">Pieces</button>
+            <button class="tab-btn" data-tab="speed">Speed</button>
+            <button class="tab-btn" data-tab="trackers">Trackers (<span id="trackers-count">0</span>)</button>
+            <button class="tab-btn" id="btn-tab-logs" data-tab="logs" style="display:none;">Logs (<span id="logs-count">0</span>)</button>
+          </div>
+
+          <div class="tab-content" id="tab-general">
+            <div class="general-grid">
+              <div class="info-group">
+                <label>Name:</label>
+                <span id="detail-name">-</span>
+              </div>
+              <div class="info-group">
+                <label>Status:</label>
+                <span id="detail-status">-</span>
+              </div>
+              <div class="info-group">
+                <label>Health:</label>
+                <span id="detail-availability">-</span>
+              </div>
+              <div class="info-group">
+                <label>Tag:</label>
+                <span id="detail-tag">-</span>
+              </div>
+              <div class="info-group">
+                <label>InfoHash:</label>
+                <span style="display:inline-flex; align-items:center; gap:6px;">
+                  <span id="detail-hash" class="mono">-</span>
+                  <button id="btn-copy-magnet" class="btn" style="padding: 1px 6px; font-size: 10px; display:none;" title="Copy Magnet URI">Copy Magnet</button>
+                </span>
+              </div>
+              <div class="info-group">
+                <label>Save Path:</label>
+                <span id="detail-path" class="mono">-</span>
+              </div>
+              <div class="info-group">
+                <label>Total Size:</label>
+                <span id="detail-size">-</span>
+              </div>
+              <div class="info-group">
+                <label>Downloaded:</label>
+                <span id="detail-downloaded">-</span>
+              </div>
+              <div class="info-group">
+                <label>Uploaded:</label>
+                <span id="detail-uploaded">-</span>
+              </div>
+              <div class="info-group">
+                <label>Share Ratio:</label>
+                <span id="detail-ratio">-</span>
+              </div>
+              <div class="info-group">
+                <label>ETA:</label>
+                <span id="detail-eta">-</span>
+              </div>
+              <div class="info-group">
+                <label>Added On:</label>
+                <span id="detail-added">-</span>
+              </div>
+              <div class="info-group">
+                <label>Completed:</label>
+                <span id="detail-completed">-</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-content" id="tab-files" style="display:none;">
+            <div class="files-table-wrapper">
+              <table class="files-table">
+                <thead>
+                  <tr>
+                    <th style="width: 88px; text-align:center;">Priority</th>
+                    <th>File Name</th>
+                    <th style="width: 14%;">Size</th>
+                    <th style="width: 24%;">Progress</th>
+                    <th style="width: 12%; text-align:center;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="files-list"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="tab-content" id="tab-peers" style="display:none;">
+            <div class="files-table-wrapper">
+              <table class="files-table">
+                <thead>
+                  <tr>
+                    <th>Peer Address</th>
+                    <th style="width: 14%;">Protocol</th>
+                    <th style="width: 16%;">Down Speed</th>
+                    <th style="width: 16%;">Up Speed</th>
+                    <th style="width: 18%;">State</th>
+                  </tr>
+                </thead>
+                <tbody id="peers-list"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="tab-content" id="tab-pieces" style="display:none;">
+            <div class="pieces-header">
+              <span id="pieces-summary" class="settings-hint">Select a torrent to view piece verification map</span>
+              <div class="pieces-legend">
+                <span><i class="legend-swatch piece-2"></i> Verified</span>
+                <span><i class="legend-swatch piece-1"></i> Partial</span>
+                <span><i class="legend-swatch piece-0"></i> Missing</span>
+              </div>
+            </div>
+            <div id="piece-map-grid" class="piece-map-grid"></div>
+          </div>
+
+          <div class="tab-content" id="tab-speed" style="display:none;">
+            <div class="speed-chart-header">
+              <div class="speed-legend" id="speed-legend">
+                <span><i class="legend-line" style="background: var(--accent-green);"></i> Down: <strong id="chart-legend-down">0 B/s</strong></span>
+                <span><i class="legend-line" style="background: var(--accent-blue);"></i> Up: <strong id="chart-legend-up">0 B/s</strong></span>
+              </div>
+              <span class="settings-hint">Last 90s throughput</span>
+            </div>
+            <canvas id="speed-chart" class="speed-chart-canvas"></canvas>
+          </div>
+
+          <div class="tab-content" id="tab-trackers" style="display:none;">
+            <div class="files-table-wrapper">
+              <table class="files-table">
+                <thead>
+                  <tr>
+                    <th>Tracker / Discovery Source</th>
+                    <th style="width: 18%;">Protocol</th>
+                  </tr>
+                </thead>
+                <tbody id="trackers-list"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="tab-content" id="tab-logs" style="display:none;">
+            <div class="logs-toolbar">
+              <div style="display:flex; align-items:center; gap: 8px;">
+                <span class="settings-hint"><strong>Dev Mode Console</strong> (mirrored to terminal &amp; <code>logs/microtorrent.log</code>)</span>
+              </div>
+              <div style="display:flex; align-items:center; gap: 6px;">
+                <select id="logs-level-filter" class="file-priority-select">
+                  <option value="ALL">All Levels</option>
+                  <option value="INFO">INFO</option>
+                  <option value="WARN">WARN</option>
+                  <option value="ERROR">ERROR</option>
+                </select>
+                <button class="btn" id="btn-clear-logs" style="padding: 2px 8px; font-size: 11px;">Clear</button>
+              </div>
+            </div>
+            <div id="logs-list" class="logs-console"></div>
+          </div>
+        </div>
+
+      </main>
+
+    </div>
+
+    <!-- Single Consolidated Status Bar -->
+    <footer class="statusbar">
+      <div class="status-left">
+        <span id="status-message">Ready</span>
+        <span class="status-separator">|</span>
+        <span id="status-total-torrents">0 torrents</span>
+        <span id="status-selection-count" style="display:none;"></span>
+      </div>
+      <div class="status-right">
+        <button id="status-scheduler-pill" class="status-pill-btn" style="display:none;" title="Click to configure Bandwidth Scheduler">
+          Schedule: <strong id="status-scheduler-badge">Normal</strong>
+        </button>
+        <button id="status-network-pill" class="status-pill-btn" title="Click to configure Multi-Network aggregation">
+          Network: <strong id="network-mode-badge">Default</strong>
+        </button>
+        <span class="status-separator">|</span>
+        <span class="speed-down">&#x2193; <strong id="status-total-down">0.0 KB/s</strong></span>
+        <span class="status-separator">|</span>
+        <span class="speed-up">&#x2191; <strong id="status-total-up">0.0 KB/s</strong></span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Table Header Column Visibility Menu -->
+  <div id="column-menu" class="column-menu"></div>
+
+  <!-- Right-Click Context Menu -->
+  <div id="context-menu" class="context-menu">
+    <button class="ctx-item" data-action="resume">&#x25B6; Resume</button>
+    <button class="ctx-item" data-action="pause">&#x23F8; Pause</button>
+    <button class="ctx-item" data-action="stop">&#x23F9; Stop</button>
+    <button class="ctx-item" data-action="recheck">&#x21BB; Force Re-check</button>
+    <button class="ctx-item" data-action="sequential">&#x26A1; Toggle Sequential</button>
+    <button class="ctx-item" data-action="set-tag">&#x1F3F7; Set Tag...</button>
+    <div class="ctx-divider"></div>
+    <button class="ctx-item" data-action="queue-top">&#x23EB; Queue: Move to Top</button>
+    <button class="ctx-item" data-action="queue-up">&#x2191; Queue: Move Up</button>
+    <button class="ctx-item" data-action="queue-down">&#x2193; Queue: Move Down</button>
+    <div class="ctx-divider"></div>
+    <button class="ctx-item" data-action="copy-magnet">&#x1F517; Copy Magnet Link</button>
+    <button class="ctx-item" data-action="open-folder">&#x1F4C1; Open Folder</button>
+    <div class="ctx-divider"></div>
+    <button class="ctx-item ctx-danger" data-action="remove">&#x1F5D1; Remove Torrent...</button>
+  </div>
+
+  <!-- Add Magnet Modal -->
+  <div id="modal-magnet" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-magnet-title">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-magnet-title">Add Torrent from Magnet URL</h3>
+        <button class="modal-close" id="modal-magnet-close" aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label for="magnet-input">Paste Magnet Link or InfoHash:</label>
+        <textarea id="magnet-input" rows="4" placeholder="magnet:?xt=urn:btih:..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-magnet-cancel">Cancel</button>
+        <button class="btn btn-primary" id="modal-magnet-submit">Add Torrent</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Torrent Options Dialog -->
+  <div id="modal-add-options" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-add-options-title">
+    <div class="modal-box" style="width: 560px;">
+      <div class="modal-header">
+        <h3 id="modal-add-options-title">Add Torrent Options</h3>
+        <button class="modal-close" id="modal-add-options-close" aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        <div style="margin-bottom: 12px;">
+          <strong id="add-options-name" style="font-size: 13px;">Torrent</strong>
+          <div id="add-options-meta" class="settings-hint"></div>
+        </div>
+
+        <label for="add-options-path"><strong>Save Destination Folder:</strong></label>
+        <div style="display:flex; gap: 8px; margin-bottom: 12px;">
+          <input type="text" id="add-options-path" class="settings-input mono">
+          <button class="btn" id="btn-browse-add-dir">Browse...</button>
+        </div>
+
+        <div class="settings-grid-2" style="margin-bottom: 10px;">
+          <div>
+            <label for="add-options-tag"><strong>Tag / Category (optional):</strong></label>
+            <input type="text" id="add-options-tag" class="settings-input" list="tag-suggestions" placeholder="e.g. Games, Movies, Linux">
+          </div>
+          <div style="display:flex; flex-direction: column; justify-content: flex-end; gap: 6px; padding-bottom: 4px;">
+            <label class="checkbox-label" style="margin-top: 0;">
+              <input type="checkbox" id="add-options-paused">
+              Start Paused
+            </label>
+            <label class="checkbox-label" style="margin-top: 0;">
+              <input type="checkbox" id="add-options-sequential">
+              Sequential Download Mode
+            </label>
+          </div>
+        </div>
+
+        <div id="add-options-files-section" style="margin-top: 12px; display:none;">
+          <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <strong>Files to Download (<span id="add-options-files-count">0</span>)</strong>
+            <div style="display:flex; gap: 6px;">
+              <button type="button" class="btn" id="btn-add-files-all" style="padding: 2px 8px; font-size: 11px;">All</button>
+              <button type="button" class="btn" id="btn-add-files-none" style="padding: 2px 8px; font-size: 11px;">None</button>
+            </div>
+          </div>
+          <div id="add-options-files-list" class="add-files-list"></div>
+        </div>
+        <div id="add-options-magnet-note" class="settings-hint" style="display:none; margin-top: 8px;">
+          File tree selection becomes available in the bottom <strong>Files</strong> tab once peer metadata loads.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-add-options-cancel">Cancel</button>
+        <button class="btn btn-primary" id="modal-add-options-submit">Start Download</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Set Tag Modal -->
+  <div id="modal-tag" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-tag-title">
+    <div class="modal-box" style="width: 380px;">
+      <div class="modal-header">
+        <h3 id="modal-tag-title">Set Torrent Tag</h3>
+        <button class="modal-close" id="modal-tag-close" aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label for="tag-modal-input">Tag for <strong id="tag-modal-name">torrent</strong>:</label>
+        <input type="text" id="tag-modal-input" class="settings-input" list="tag-suggestions" placeholder="Leave blank to clear tag">
+        <div class="settings-hint" style="margin-top: 8px;">Assign tags to organize torrents in the sidebar or filter quickly.</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-tag-clear">Clear Tag</button>
+        <button class="btn btn-primary" id="modal-tag-save">Save Tag</button>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="tag-suggestions">
+    <option value="Movies"></option>
+    <option value="Games"></option>
+    <option value="Music"></option>
+    <option value="Software"></option>
+    <option value="Linux ISOs"></option>
+  </datalist>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="modal-delete" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-delete-title">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-delete-title">Remove Torrent</h3>
+        <button class="modal-close" id="modal-delete-close" aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to remove <strong id="delete-torrent-name">this torrent</strong>?</p>
+        <label class="checkbox-label">
+          <input type="checkbox" id="delete-files-checkbox"> Also delete downloaded files from disk
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-delete-cancel">Cancel</button>
+        <button class="btn btn-danger" id="modal-delete-submit">Remove</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabbed Preferences & Settings Modal -->
+  <div id="modal-settings" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-settings-title">
+    <div class="modal-box" style="width: 630px;">
+      <div class="modal-header">
+        <h3 id="modal-settings-title">Preferences &amp; Settings</h3>
+        <button class="modal-close" id="modal-settings-close" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div class="settings-tabs">
+        <button class="settings-tab-btn active" data-stab="general">General</button>
+        <button class="settings-tab-btn" data-stab="bandwidth">Bandwidth &amp; Queue</button>
+        <button class="settings-tab-btn" data-stab="network">Multi-Network</button>
+        <button class="settings-tab-btn" data-stab="automation">Automation</button>
+        <button class="settings-tab-btn" data-stab="appearance">Appearance</button>
+      </div>
+
+      <div class="modal-body" style="min-height: 260px; max-height: 68vh; overflow-y: auto;">
+
+        <!-- Tab 1: General -->
+        <div class="settings-pane" id="stab-general">
+          <label for="settings-download-dir"><strong>Default Download Directory:</strong></label>
+          <div style="display:flex; gap: 8px; margin-bottom: 8px;">
+            <input type="text" id="settings-download-dir" class="settings-input mono">
+            <button class="btn" id="btn-browse-download-dir" title="Open Windows Folder Picker">Browse...</button>
+            <button class="btn" id="btn-reset-download-dir" title="Reset to project default downloads folder">Default</button>
+          </div>
+          <div class="settings-hint" style="margin-bottom: 10px;">
+            New torrents added without a custom destination folder are saved here.
+          </div>
+
+          <label class="checkbox-label">
+            <input type="checkbox" id="settings-show-add-dialog" checked>
+            Show "Add Torrent Options" dialog before starting download
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="settings-auto-tag-subfolder">
+            Automatically create subfolder matching torrent Tag (e.g. Downloads\Movies)
+          </label>
+
+          <div class="settings-subcard">
+            <label class="checkbox-label" style="margin-top: 0; margin-bottom: 8px;">
+              <input type="checkbox" id="settings-incomplete-dir-enabled">
+              <strong>Auto-Move Completed: Keep incomplete downloads in staging folder</strong>
+            </label>
+            <div style="display:flex; gap: 8px;">
+              <input type="text" id="settings-incomplete-dir" class="settings-input mono" placeholder="Leave blank for Downloads\incomplete">
+              <button class="btn" id="btn-browse-incomplete-dir">Browse...</button>
+            </div>
+            <div class="settings-hint" style="margin-top: 6px;">
+              Downloads write here until 100% verified, then relocate automatically into your completed destination.
+            </div>
+          </div>
+
+          <div class="settings-subcard">
+            <label class="checkbox-label" style="margin-top: 0; margin-bottom: 8px;">
+              <input type="checkbox" id="settings-watch-folder-enabled">
+              <strong>Watch Folder: Auto-import new <code>.torrent</code> files</strong>
+            </label>
+            <div style="display:flex; gap: 8px; margin-bottom: 8px;">
+              <input type="text" id="settings-watch-folder-path" class="settings-input mono" placeholder="e.g. C:\Users\You\Downloads">
+              <button class="btn" id="btn-browse-watch-dir">Browse...</button>
+            </div>
+            <div class="settings-grid-2">
+              <div>
+                <label for="settings-watch-folder-action">After Import:</label>
+                <select id="settings-watch-folder-action" class="settings-input">
+                  <option value="rename">Rename to .torrent.added</option>
+                  <option value="delete">Delete .torrent file</option>
+                </select>
+              </div>
+              <div>
+                <label for="settings-watch-folder-tag">Auto-Tag (optional):</label>
+                <input type="text" id="settings-watch-folder-tag" class="settings-input" list="tag-suggestions" placeholder="None">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Bandwidth, Queue & Seeding -->
+        <div class="settings-pane" id="stab-bandwidth" style="display:none;">
+          <div class="settings-preset-bar">
+            <div>
+              <strong>Throughput Profile</strong>
+              <div class="settings-hint">Uncapped speeds, 250 max peers &amp; multi-network aggregation</div>
+            </div>
+            <button class="btn btn-primary" id="btn-max-bandwidth-preset">&#x26A1; Max Bandwidth</button>
+          </div>
+
+          <div class="settings-grid-3" style="margin-bottom: 12px;">
+            <div>
+              <label for="settings-down-speed"><strong>Max Down (KB/s, -1 = ∞):</strong></label>
+              <input type="number" id="settings-down-speed" value="-1" class="settings-input">
+            </div>
+            <div>
+              <label for="settings-up-speed"><strong>Max Up (KB/s, -1 = ∞):</strong></label>
+              <input type="number" id="settings-up-speed" value="-1" class="settings-input">
+            </div>
+            <div>
+              <label for="settings-max-conns"><strong>Max Peers (10–500):</strong></label>
+              <input type="number" id="settings-max-conns" min="10" max="500" value="120" class="settings-input">
+            </div>
+          </div>
+
+          <div class="settings-grid-2">
+            <div>
+              <label for="settings-max-active-downloads"><strong>Max Active Downloads (0 = ∞):</strong></label>
+              <input type="number" id="settings-max-active-downloads" min="0" value="0" class="settings-input">
+            </div>
+            <div>
+              <label for="settings-seed-ratio-limit"><strong>Auto-Stop Seeding Ratio (-1 = ∞):</strong></label>
+              <input type="number" id="settings-seed-ratio-limit" step="0.1" value="-1" class="settings-input">
+            </div>
+          </div>
+
+          <div class="settings-subcard">
+            <label class="checkbox-label" style="margin-top: 0; margin-bottom: 8px;">
+              <input type="checkbox" id="settings-scheduler-enabled">
+              <strong>Bandwidth Scheduler (Apply Alternative Speeds During Window)</strong>
+            </label>
+            <div class="settings-grid-2" style="margin-bottom: 8px;">
+              <div>
+                <label for="settings-scheduler-start">From:</label>
+                <input type="time" id="settings-scheduler-start" value="09:00" class="settings-input">
+              </div>
+              <div>
+                <label for="settings-scheduler-end">To (supports overnight):</label>
+                <input type="time" id="settings-scheduler-end" value="18:00" class="settings-input">
+              </div>
+            </div>
+            <div class="settings-grid-2">
+              <div>
+                <label for="settings-scheduler-down">Alt Max Down (KB/s, -1 = ∞):</label>
+                <input type="number" id="settings-scheduler-down" value="2048" class="settings-input">
+              </div>
+              <div>
+                <label for="settings-scheduler-up">Alt Max Up (KB/s, -1 = ∞):</label>
+                <input type="number" id="settings-scheduler-up" value="512" class="settings-input">
+              </div>
+            </div>
+            <div class="scheduler-days" id="settings-scheduler-days">
+              <label class="day-pill"><input type="checkbox" value="1" checked> Mon</label>
+              <label class="day-pill"><input type="checkbox" value="2" checked> Tue</label>
+              <label class="day-pill"><input type="checkbox" value="3" checked> Wed</label>
+              <label class="day-pill"><input type="checkbox" value="4" checked> Thu</label>
+              <label class="day-pill"><input type="checkbox" value="5" checked> Fri</label>
+              <label class="day-pill"><input type="checkbox" value="6" checked> Sat</label>
+              <label class="day-pill"><input type="checkbox" value="0" checked> Sun</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Multi-Network -->
+        <div class="settings-pane" id="stab-network" style="display:none;">
+          <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label class="checkbox-label" style="margin-top: 0;">
+              <input type="checkbox" id="settings-multi-network">
+              <strong>Combine Multiple Networks (Multi-NIC Peer Balancing)</strong>
+            </label>
+            <button class="btn" id="btn-refresh-interfaces" style="padding: 3px 8px; font-size: 11px;">&#x21BB; Refresh</button>
+          </div>
+          <div class="settings-hint" style="margin-bottom: 10px;">
+            Distributes peer TCP connections round-robin across selected adapters (disables uTP while active). Leave all unchecked to auto-use every physical adapter.
+          </div>
+
+          <div id="settings-interfaces-list" class="interfaces-list"></div>
+        </div>
+
+        <!-- Tab 4: Automation & Notifications -->
+        <div class="settings-pane" id="stab-automation" style="display:none;">
+          <label class="checkbox-label" style="margin-top: 0; margin-bottom: 10px;">
+            <input type="checkbox" id="settings-auto-stop-seeding">
+            <strong>Stop seeding automatically when each download completes</strong>
+          </label>
+          <label class="checkbox-label" style="margin-top: 0; margin-bottom: 14px;">
+            <input type="checkbox" id="settings-notifications-enabled" checked>
+            <strong>Show Windows Desktop Notification when a download completes</strong>
+          </label>
+
+          <label for="settings-on-complete-action"><strong>When All Downloads Complete:</strong></label>
+          <select id="settings-on-complete-action" class="settings-input" style="margin-bottom: 8px;">
+            <option value="none">Do nothing (continue seeding)</option>
+            <option value="pause-seeding">Stop all torrents (disconnect peers &amp; stop seeding)</option>
+            <option value="exit">Exit MicroTorrent</option>
+            <option value="sleep">Put computer to sleep</option>
+          </select>
+          <div class="settings-hint">
+            Completion actions trigger only after active downloads finish, never from already-completed torrents loaded at startup.
+          </div>
+        </div>
+
+        <!-- Tab 5: Appearance & UI -->
+        <div class="settings-pane" id="stab-appearance" style="display:none;">
+          <div class="settings-grid-3" style="margin-bottom: 16px;">
+            <div>
+              <label for="ui-theme"><strong>Theme:</strong></label>
+              <select id="ui-theme" class="settings-input">
+                <option value="dark">Dark Slate</option>
+                <option value="midnight">Midnight OLED</option>
+                <option value="light">Clean Light</option>
+              </select>
+            </div>
+            <div>
+              <label for="ui-density"><strong>Row Density:</strong></label>
+              <select id="ui-density" class="settings-input">
+                <option value="comfortable">Comfortable</option>
+                <option value="compact">Compact</option>
+              </select>
+            </div>
+            <div>
+              <label for="ui-speed-unit"><strong>Speed Units:</strong></label>
+              <select id="ui-speed-unit" class="settings-input">
+                <option value="bytes">Bytes/s (MB/s)</option>
+                <option value="bits">Bits/s (Mbps)</option>
+              </select>
+            </div>
+          </div>
+
+          <label class="checkbox-label">
+            <input type="checkbox" id="ui-show-sidebar" checked>
+            Show Left Categories &amp; Adapters Sidebar
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="ui-show-details" checked>
+            Show Bottom Inspector Panel
+          </label>
+
+          <div class="settings-subcard">
+            <div style="display:flex; justify-content: space-between; align-items: center;">
+              <strong>Table Columns &amp; Order</strong>
+              <button type="button" class="btn" id="btn-reset-columns" style="padding: 2px 8px; font-size: 11px;">Reset Default</button>
+            </div>
+            <div class="settings-hint">Toggle optional columns or reorder with Up/Down. Right-click table headers to toggle anytime.</div>
+            <div id="settings-columns-list" class="columns-config-list"></div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-settings-cancel">Cancel</button>
+        <button class="btn btn-primary" id="modal-settings-save">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Media Player Modal -->
+  <div id="modal-player" class="modal" role="dialog" aria-modal="true" aria-labelledby="player-title">
+    <div class="modal-box" style="width: 720px; max-width: 95vw;">
+      <div class="modal-header">
+        <h3 id="player-title">&#x25B6; Stream Media Player</h3>
+        <button class="modal-close" id="modal-player-close" aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 10px; background: #000; display: flex; justify-content: center; align-items: center; min-height: 240px;">
+        <video id="player-video" controls autoplay style="width: 100%; max-height: 480px; display: none;"></video>
+        <audio id="player-audio" controls autoplay style="width: 100%; display: none;"></audio>
+        <div id="player-loading" style="color: var(--text-secondary); font-size: 13px;">Buffering media stream...</div>
+      </div>
+      <div class="modal-footer" style="display:flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 11px; color: var(--text-muted);">HTTP 206 Partial Content Stream via WebTorrent</span>
+        <button class="btn btn-secondary" id="modal-player-close-btn">Close Player</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

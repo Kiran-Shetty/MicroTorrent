@@ -1,0 +1,21 @@
+{
+  "name": "micro-torrent",
+  "version": "1.0.0",
+  "description": "Clean, ad-free lightweight desktop BitTorrent client with System Tray & Magnet protocol association",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/main.js",
+    "dev": "node src/main.js --dev --no-launch",
+    "register": "node scripts/register-protocol.mjs",
+    "unregister": "node scripts/unregister-protocol.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "parse-torrent": "^11.0.24",
+    "systray2": "^2.1.8",
+    "webtorrent": "^2.6.4",
+    "ws": "^8.18.0"
+  }
+}

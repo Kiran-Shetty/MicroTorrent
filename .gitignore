@@ -1,0 +1,9 @@
+node_modules/
+downloads/
+logs/
+*.log
+session.json
+settings.json
+.idea/
+.DS_Store
+Thumbs.db
