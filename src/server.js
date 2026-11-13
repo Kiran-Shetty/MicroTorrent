@@ -155,6 +155,16 @@ export function createServer(torrentManager, port = 3456, onOpenWindowRequest = 
     }
   });
 
+  app.post("/api/torrents/:infoHash/stop", async (req, res) => {
+    try {
+      const ok = await torrentManager.stopTorrent(req.params.infoHash);
+      if (!ok) return res.status(404).json({ ok: false, error: "Torrent not found" });
+      res.json({ ok });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   app.post("/api/torrents/:infoHash/resume", async (req, res) => {
     try {
       const ok = await torrentManager.resumeTorrent(req.params.infoHash);
@@ -287,6 +297,15 @@ export function createServer(torrentManager, port = 3456, onOpenWindowRequest = 
   app.post("/api/pause-all", async (req, res) => {
     try {
       await torrentManager.pauseAll();
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post("/api/stop-all", async (req, res) => {
+    try {
+      await torrentManager.stopAll();
       res.json({ ok: true });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });

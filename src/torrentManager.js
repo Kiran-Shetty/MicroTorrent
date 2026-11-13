@@ -30,6 +30,7 @@ export class TorrentManager {
     }
 
     this.pausedTorrents = new Set();
+    this.stoppedTorrents = new Set();
     this.queuedTorrents = new Set();
     this.sequentialTorrents = new Set();
     this.filePriorities = new Map(); // infoHash -> Map<fileIndex, "high" | "skip">
@@ -54,6 +55,7 @@ export class TorrentManager {
       maxConns: 120,
       maxActiveDownloads: 0, // 0 = unlimited
       seedRatioLimit: -1, // -1 = unlimited
+      autoStopOnComplete: false,
       onCompleteAction: "none", // none | pause-seeding | exit | sleep
       autoTagSubfolder: false,
       showAddDialog: true,
@@ -135,12 +137,139 @@ export class TorrentManager {
     }
   }
 
+  _guardWire(torrent, wire) {
+    if (!wire || wire._microtorrentGuarded) return;
+    wire._microtorrentGuarded = true;
+    const manager = this;
+    const isInactive = () =>
+      Boolean(
+        torrent.paused ||
+          manager.pausedTorrents.has(torrent.infoHash) ||
+          manager.stoppedTorrents.has(torrent.infoHash)
+      );
+
+    const origUnchoke = wire.unchoke;
+    if (typeof origUnchoke === "function") {
+      wire.unchoke = function (...args) {
+        if (isInactive()) {
+          try {
+            wire.choke();
+          } catch {}
+          return;
+        }
+        return origUnchoke.apply(this, args);
+      };
+    }
+
+    const origOnRequest = wire._onRequest;
+    if (typeof origOnRequest === "function") {
+      wire._onRequest = function (index, offset, length, ...rest) {
+        if (isInactive()) {
+          if (this.hasFast && typeof this.reject === "function") {
+            try {
+              this.reject(index, offset, length);
+            } catch {}
+          }
+          return;
+        }
+        return origOnRequest.call(this, index, offset, length, ...rest);
+      };
+    }
+
+    if (isInactive()) {
+      try {
+        wire.choke();
+        wire.uninterested();
+      } catch {}
+    }
+  }
+
   _attachTorrentHooks(torrent) {
     if (!torrent || torrent._microtorrentHooked) return;
     torrent._microtorrentHooked = true;
     torrent._verifyChecked = 0;
     torrent._isChecking = false;
     torrent._manualChecking = false;
+
+    // WebTorrent defaults to "sequential"; its unoptimized "rarest" RarityMap burns 100% CPU on O(numPieces) scans.
+    // Ensure strategy is sequential and destroy RarityMap to prevent wire recalculation overhead and massive speed drops.
+    torrent.strategy = "sequential";
+    if (torrent._rarityMap) {
+      try { torrent._rarityMap.destroy(); } catch (_) {}
+      torrent._rarityMap = null;
+    }
+
+    const manager = this;
+    const isInactive = () =>
+      Boolean(
+        torrent.paused ||
+          manager.pausedTorrents.has(torrent.infoHash) ||
+          manager.stoppedTorrents.has(torrent.infoHash)
+      );
+
+    if (manager.stoppedTorrents.has(torrent.infoHash)) {
+      torrent.discovery = null;
+    }
+
+    const origStartDiscovery = torrent._startDiscovery;
+    if (typeof origStartDiscovery === "function") {
+      torrent._startDiscovery = function (...args) {
+        if (manager.stoppedTorrents.has(this.infoHash)) {
+          this.discovery = null;
+          return;
+        }
+        return origStartDiscovery.apply(this, args);
+      };
+    }
+
+    const origCheckDone = torrent._checkDone;
+    if (typeof origCheckDone === "function") {
+      torrent._checkDone = function (...args) {
+        if (!this.discovery) {
+          const dummy = { complete() {}, tracker: { start() {} } };
+          this.discovery = dummy;
+          try {
+            return origCheckDone.apply(this, args);
+          } finally {
+            if (this.discovery === dummy) {
+              this.discovery = null;
+            }
+          }
+        }
+        try {
+          return origCheckDone.apply(this, args);
+        } catch (err) {
+          if (err instanceof TypeError && err.message.includes("complete")) {
+            return true;
+          }
+          throw err;
+        }
+      };
+    }
+
+    const origRechoke = torrent._rechoke;
+    if (typeof origRechoke === "function") {
+      torrent._rechoke = function (...args) {
+        // WebTorrent's built-in _rechoke timer keeps unchoking wires when paused; choke instead so paused/stopped torrents never seed.
+        if (isInactive()) {
+          for (const wire of this.wires || []) {
+            try {
+              wire.choke();
+              wire.uninterested();
+            } catch {}
+          }
+          return;
+        }
+        return origRechoke.apply(this, args);
+      };
+    }
+
+    torrent.on("wire", (wire) => {
+      manager._guardWire(torrent, wire);
+    });
+    for (const wire of torrent.wires || []) {
+      manager._guardWire(torrent, wire);
+    }
 
     const origVerifyPiece = torrent._verifyPiece;
     if (typeof origVerifyPiece === "function") {
@@ -154,6 +283,11 @@ export class TorrentManager {
     }
 
     torrent.once("metadata", () => {
+      torrent.strategy = "sequential";
+      if (torrent._rarityMap) {
+        try { torrent._rarityMap.destroy(); } catch (_) {}
+        torrent._rarityMap = null;
+      }
       if (!torrent.ready) {
         torrent._verifyChecked = 0;
         torrent._isChecking = true;
@@ -422,6 +556,7 @@ export class TorrentManager {
         if (typeof this.settings.seedRatioLimit !== "number" || !Number.isFinite(this.settings.seedRatioLimit) || this.settings.seedRatioLimit <= 0) {
           this.settings.seedRatioLimit = -1;
         }
+        this.settings.autoStopOnComplete = Boolean(this.settings.autoStopOnComplete);
         if (!["none", "pause-seeding", "exit", "sleep"].includes(this.settings.onCompleteAction)) {
           this.settings.onCompleteAction = "none";
         }
@@ -453,6 +588,7 @@ export class TorrentManager {
     maxConns,
     maxActiveDownloads,
     seedRatioLimit,
+    autoStopOnComplete,
     onCompleteAction,
     autoTagSubfolder,
     showAddDialog,
@@ -524,6 +660,9 @@ export class TorrentManager {
     }
     if (typeof seedRatioLimit === "number" && Number.isFinite(seedRatioLimit)) {
       this.settings.seedRatioLimit = seedRatioLimit <= 0 ? -1 : Math.round(seedRatioLimit * 100) / 100;
+    }
+    if (typeof autoStopOnComplete === "boolean") {
+      this.settings.autoStopOnComplete = autoStopOnComplete;
     }
     if (typeof onCompleteAction === "string" && ["none", "pause-seeding", "exit", "sleep"].includes(onCompleteAction)) {
       this.settings.onCompleteAction = onCompleteAction;
@@ -689,9 +828,11 @@ export class TorrentManager {
               if (item.addedAt) this.torrentAddedAt.set(hash, item.addedAt);
               if (item.completedAt) this.torrentCompletedAt.set(hash, item.completedAt);
               if (item.queued) this.queuedTorrents.add(hash);
+              if (item.stopped) this.stoppedTorrents.add(hash);
             }
             this.addTorrent(item.magnetURI, {
-              paused: Boolean(item.paused || item.queued),
+              paused: Boolean(item.paused || item.queued || item.stopped),
+              stopped: Boolean(item.stopped),
               queued: Boolean(item.queued),
               sequential: Boolean(item.sequential),
               savePath: item.savePath || "",
@@ -728,6 +869,7 @@ export class TorrentManager {
             name: t.name,
             magnetURI: t.magnetURI,
             paused: this.pausedTorrents.has(t.infoHash) && !this.queuedTorrents.has(t.infoHash),
+            stopped: this.stoppedTorrents.has(t.infoHash),
             queued: this.queuedTorrents.has(t.infoHash),
             sequential: this.sequentialTorrents.has(t.infoHash),
             completed: Boolean(t.done || this._knownCompleted.has(t.infoHash)),
@@ -793,7 +935,8 @@ export class TorrentManager {
       : null;
 
     // Enforce active download queue at add-time unless explicitly paused or relocated
-    let startPaused = Boolean(options.paused);
+    const startStopped = Boolean(options.stopped);
+    let startPaused = Boolean(options.paused || startStopped);
     let startQueued = Boolean(options.queued);
     if (!startPaused && !startQueued && !options.isRelocatedCompleted && this.settings.maxActiveDownloads > 0) {
       const activeCount = this._countActiveDownloads();
@@ -817,7 +960,7 @@ export class TorrentManager {
           destroyStoreOnDestroy: false,
           paused: startPaused,
           deselect: startPaused,
-          strategy: options.sequential ? "sequential" : "rarest"
+          strategy: "sequential"
         };
 
         const torrent = this.client.add(torrentInput, opts, (t) => {
@@ -835,7 +978,11 @@ export class TorrentManager {
             this._setFilePriorityMap(t.infoHash, deselectedInput, options.filePriorities);
           }
 
-          if (startPaused || this.pausedTorrents.has(t.infoHash)) {
+          if (startStopped || this.stoppedTorrents.has(t.infoHash)) {
+            this.stoppedTorrents.add(t.infoHash);
+            this.pausedTorrents.add(t.infoHash);
+            this._applyPauseState(t, { disconnectPeers: true });
+          } else if (startPaused || this.pausedTorrents.has(t.infoHash)) {
             this.pausedTorrents.add(t.infoHash);
             if (startQueued) this.queuedTorrents.add(t.infoHash);
             this._applyPauseState(t);
@@ -868,6 +1015,7 @@ export class TorrentManager {
           if (deselectedInput || options.filePriorities) {
             this._setFilePriorityMap(hash, deselectedInput, options.filePriorities);
           }
+          if (startStopped) this.stoppedTorrents.add(hash);
           if (startPaused) this.pausedTorrents.add(hash);
           if (startQueued) this.queuedTorrents.add(hash);
           if (options.sequential) this.sequentialTorrents.add(hash);
@@ -875,7 +1023,9 @@ export class TorrentManager {
         });
 
         torrent.once("metadata", () => {
-          if (startPaused || this.pausedTorrents.has(torrent.infoHash)) {
+          if (startStopped || this.stoppedTorrents.has(torrent.infoHash)) {
+            this._applyPauseState(torrent, { disconnectPeers: true });
+          } else if (startPaused || this.pausedTorrents.has(torrent.infoHash)) {
             this._applyPauseState(torrent);
           }
         });
@@ -898,6 +1048,23 @@ export class TorrentManager {
             this.torrentCompletedAt.set(hash, Date.now());
           }
           this.queuedTorrents.delete(hash);
+
+          if (
+            !wasKnown &&
+            !options.isSessionRestore &&
+            !options.paused &&
+            !startStopped &&
+            this.settings.autoStopOnComplete
+          ) {
+            this.stoppedTorrents.add(hash);
+            this.pausedTorrents.add(hash);
+            queueMicrotask(() => {
+              if (torrent.destroyed) return;
+              this._applyPauseState(torrent, { disconnectPeers: true });
+            });
+            this.logger.info("Auto-Stop", `Stopped seeding ${torrent.name || hash} on completion`, { alwaysConsole: true });
+          }
+
           const completedSnapshot = !wasKnown && receivedBytes > 0 ? this.serializeTorrent(torrent) : null;
           this.saveSession();
 
@@ -1027,7 +1194,11 @@ export class TorrentManager {
     const hash = torrent.infoHash;
     const isSeq = this.sequentialTorrents.has(hash);
     const basePriority = isSeq ? 1 : 0;
-    torrent.strategy = isSeq ? "sequential" : "rarest";
+    torrent.strategy = "sequential";
+    if (torrent._rarityMap) {
+      try { torrent._rarityMap.destroy(); } catch (_) {}
+      torrent._rarityMap = null;
+    }
 
     if (!torrent.pieces || torrent.pieces.length === 0) return;
 
@@ -1053,7 +1224,7 @@ export class TorrentManager {
     }
   }
 
-  _applyPauseState(torrent) {
+  _applyPauseState(torrent, { disconnectPeers = false } = {}) {
     if (!torrent || torrent.destroyed) return;
     if (typeof torrent.pause === "function") {
       torrent.pause();
@@ -1069,6 +1240,48 @@ export class TorrentManager {
       torrent._selections.clear();
       if (typeof torrent._updateSelections === "function") {
         torrent._updateSelections();
+      }
+    }
+
+    if (disconnectPeers) {
+      if (Array.isArray(torrent._queue)) {
+        torrent._queue.length = 0;
+      }
+      if (torrent._peers && typeof torrent._peers.keys === "function") {
+        for (const id of [...torrent._peers.keys()]) {
+          try {
+            torrent.removePeer(id);
+          } catch {}
+        }
+      }
+      if (Array.isArray(torrent.wires)) {
+        for (const wire of [...torrent.wires]) {
+          try {
+            wire.destroy();
+          } catch {}
+        }
+      }
+      if (torrent._noPeersIntervalId) {
+        clearInterval(torrent._noPeersIntervalId);
+        torrent._noPeersIntervalId = null;
+      }
+      if (torrent.discovery) {
+        const disc = torrent.discovery;
+        torrent.discovery = null;
+        try {
+          disc.destroy(() => {});
+        } catch {}
+      } else {
+        torrent.discovery = null;
+      }
+    } else if (Array.isArray(torrent.wires)) {
+      // Choke existing wires immediately so paused torrents never seed/upload
+      for (const wire of torrent.wires) {
+        this._guardWire(torrent, wire);
+        try {
+          wire.choke();
+          wire.uninterested();
+        } catch {}
       }
     }
   }
@@ -1091,8 +1304,10 @@ export class TorrentManager {
           this.logger.error("Recheck Error", `${torrent.infoHash}: ${err.message}`, { alwaysConsole: true });
         } else {
           this.logger.info("Recheck", `Completed verification for ${torrent.name || torrent.infoHash}`);
-          if (this.pausedTorrents.has(torrent.infoHash)) {
-            this._applyPauseState(torrent);
+          if (this.stoppedTorrents.has(torrent.infoHash)) {
+            this._applyPauseState(torrent, { disconnectPeers: true });
+          } else if (this.pausedTorrents.has(torrent.infoHash)) {
+            this._applyPauseState(torrent, { disconnectPeers: false });
           } else {
             this._applyActiveSelections(torrent);
           }
@@ -1183,7 +1398,11 @@ export class TorrentManager {
     if (!this.pausedTorrents.has(hash)) {
       this._applyActiveSelections(torrent);
     } else {
-      torrent.strategy = enabled ? "sequential" : "rarest";
+      torrent.strategy = "sequential";
+      if (torrent._rarityMap) {
+        try { torrent._rarityMap.destroy(); } catch (_) {}
+        torrent._rarityMap = null;
+      }
     }
 
     this.saveSession();
@@ -1215,11 +1434,13 @@ export class TorrentManager {
           !t.destroyed &&
           t.done &&
           !this.pausedTorrents.has(t.infoHash) &&
+          !this.stoppedTorrents.has(t.infoHash) &&
           (t.ratio || 0) >= this.settings.seedRatioLimit
         ) {
-          this.logger.info("Ratio Limit Reached", `Pausing ${t.name} (ratio ${t.ratio.toFixed(2)})`, { alwaysConsole: true });
+          this.logger.info("Ratio Limit Reached", `Stopping ${t.name} (ratio ${t.ratio.toFixed(2)})`, { alwaysConsole: true });
+          this.stoppedTorrents.add(t.infoHash);
           this.pausedTorrents.add(t.infoHash);
-          this._applyPauseState(t);
+          this._applyPauseState(t, { disconnectPeers: true });
           changed = true;
         }
       }
@@ -1307,9 +1528,24 @@ export class TorrentManager {
     const hash = torrent.infoHash || infoHash;
     this.queuedTorrents.delete(hash);
     this.pausedTorrents.add(hash);
-    this._applyPauseState(torrent);
+    this._applyPauseState(torrent, { disconnectPeers: false });
     this.saveSession();
     this.logger.info("Torrent", `Paused ${torrent.name || hash}`);
+    this.enforceLifecycleRules().catch(() => {});
+    return true;
+  }
+
+  async stopTorrent(infoHash) {
+    const torrent = await this.findTorrent(infoHash);
+    if (!torrent || torrent.destroyed) return false;
+
+    const hash = torrent.infoHash || infoHash;
+    this.queuedTorrents.delete(hash);
+    this.stoppedTorrents.add(hash);
+    this.pausedTorrents.add(hash);
+    this._applyPauseState(torrent, { disconnectPeers: true });
+    this.saveSession();
+    this.logger.info("Torrent", `Stopped ${torrent.name || hash}`);
     this.enforceLifecycleRules().catch(() => {});
     return true;
   }
@@ -1319,18 +1555,47 @@ export class TorrentManager {
     if (!torrent || torrent.destroyed) return false;
 
     const hash = torrent.infoHash || infoHash;
+    const wasStopped = this.stoppedTorrents.has(hash);
+    this.stoppedTorrents.delete(hash);
     this.pausedTorrents.delete(hash);
+    this.stoppedTorrents.delete(hash);
     this.queuedTorrents.delete(hash);
     torrent._startAsDeselected = false;
 
+    if (wasStopped && !torrent.discovery && typeof torrent._startDiscovery === "function") {
+      try {
+        torrent._startDiscovery();
+      } catch (err) {
+        this.logger.warn("Discovery Restart", `${torrent.name || hash}: ${err.message}`);
+      }
+    }
+
     if (typeof torrent.resume === "function") {
       torrent.resume();
+    }
+    for (const wire of torrent.wires || []) {
+      try {
+        wire.unchoke();
+      } catch {}
+    }
+    if (typeof torrent._rechoke === "function") {
+      try {
+        torrent._rechoke();
+      } catch {}
     }
 
     this._applyActiveSelections(torrent);
     this.saveSession();
     this.logger.info("Torrent", `Resumed ${torrent.name || hash}`);
     return true;
+  }
+
+  async stopAll() {
+    for (const t of [...this.client.torrents]) {
+      if (t.infoHash) {
+        await this.stopTorrent(t.infoHash);
+      }
+    }
   }
 
   async pauseAll() {
@@ -1368,6 +1633,7 @@ export class TorrentManager {
     const hash = torrent?.infoHash || String(infoHash).toLowerCase();
     this.logger.info("Torrent", `Removing ${torrent?.name || hash} (deleteFiles=${Boolean(deleteFiles)})`);
     this.pausedTorrents.delete(hash);
+    this.stoppedTorrents.delete(hash);
     this.queuedTorrents.delete(hash);
     this.sequentialTorrents.delete(hash);
     this.filePriorities.delete(hash);
@@ -1627,9 +1893,10 @@ export class TorrentManager {
   }
 
   serializeTorrent(t) {
+    const isStopped = this.stoppedTorrents.has(t.infoHash);
     const isQueued = this.queuedTorrents.has(t.infoHash);
     const queuePosition = isQueued ? [...this.queuedTorrents].indexOf(t.infoHash) + 1 : null;
-    const isPaused = this.pausedTorrents.has(t.infoHash) && !isQueued;
+    const isPaused = (this.pausedTorrents.has(t.infoHash) || isStopped) && !isQueued;
     const isSeq = this.sequentialTorrents.has(t.infoHash);
     const prioMap = this.filePriorities.get(t.infoHash);
     const isChecking = Boolean(
@@ -1637,7 +1904,9 @@ export class TorrentManager {
     );
 
     let status = "downloading";
-    if (isChecking && (!isPaused || t._manualChecking)) {
+    if (isStopped) {
+      status = "stopped";
+    } else if (isChecking && (!isPaused || t._manualChecking)) {
       status = "checking";
     } else if (isQueued) {
       status = "queued";
@@ -1712,6 +1981,7 @@ export class TorrentManager {
       tag: this.torrentTags.get(t.infoHash) || "",
       magnetURI: t.magnetURI,
       sequential: isSeq,
+      stopped: isStopped,
       pieceLength: t.pieceLength || 0,
       totalPieces,
       verifiedPieces,

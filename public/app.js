@@ -111,12 +111,14 @@ const emptyState = document.getElementById("empty-state");
 const searchInput = document.getElementById("search-input");
 const btnResume = document.getElementById("btn-resume");
 const btnPause = document.getElementById("btn-pause");
+const btnStop = document.getElementById("btn-stop");
 const btnRecheck = document.getElementById("btn-recheck");
 const btnDelete = document.getElementById("btn-delete");
 const btnSequential = document.getElementById("btn-sequential");
 const btnOpenFolder = document.getElementById("btn-open-folder");
 const btnOpenDownloads = document.getElementById("btn-open-downloads");
 const btnPauseAll = document.getElementById("btn-pause-all");
+const btnStopAll = document.getElementById("btn-stop-all");
 const btnResumeAll = document.getElementById("btn-resume-all");
 const btnToggleDetails = document.getElementById("btn-toggle-details");
 const fileInput = document.getElementById("file-input");
@@ -221,7 +223,7 @@ function getHealthInfo(t) {
   if (avail > 0) {
     return { label: `${avail.toFixed(2)} (Partial)`, cls: "health-warn" };
   }
-  if (t.status === "paused" || t.status === "queued") {
+  if (t.status === "paused" || t.status === "stopped" || t.status === "queued") {
     return { label: "-", cls: "" };
   }
   return { label: "0.00 (Stalled)", cls: "health-bad" };
@@ -456,6 +458,7 @@ function getFilteredTorrents() {
     if (activeFilter === "seeding") return t.status === "seeding";
     if (activeFilter === "completed") return t.progress >= 100;
     if (activeFilter === "paused") return t.status === "paused";
+    if (activeFilter === "stopped") return t.status === "stopped";
     if (activeFilter === "active") return t.downloadSpeed > 0 || t.uploadSpeed > 0 || t.status === "checking";
     return true;
   });
@@ -518,7 +521,7 @@ function renderTorrentCell(t, colId) {
     case "remaining":
       return `<td>${formatBytes(t.remaining)}</td>`;
     case "progress": {
-      const pausedClass = t.status === "paused" || t.status === "queued" ? "paused" : "";
+      const pausedClass = t.status === "paused" || t.status === "stopped" || t.status === "queued" ? "paused" : "";
       const barPct = t.status === "checking" && t.verifyProgress > 0 ? t.verifyProgress : t.progress;
       return `<td>
         <div class="progress-bar-container">
@@ -540,7 +543,18 @@ function renderTorrentCell(t, colId) {
     case "numPeers":
       return `<td>${t.numPeers}</td>`;
     case "eta": {
-      const etaText = t.status === "checking" ? "..." : t.status === "queued" ? "Queued" : formatEta(t.eta);
+      const etaText =
+        t.status === "checking"
+          ? "..."
+          : t.status === "queued"
+            ? "Queued"
+            : t.progress >= 100
+              ? "Done"
+              : t.status === "stopped"
+                ? "Stopped"
+                : t.status === "paused"
+                  ? "Paused"
+                  : formatEta(t.eta);
       return `<td>${etaText}</td>`;
     }
     case "ratio":
@@ -612,12 +626,14 @@ function render() {
   // Update Toolbar Action states (supports multi-select!)
   const selectedList = getSelectedTorrentsList();
   const primary = torrents.find((t) => t.infoHash === selectedHash) || selectedList[0] || null;
-  const anyResumable = selectedList.some((t) => t.status === "paused" || t.status === "queued");
-  const anyPausable = selectedList.some((t) => t.status !== "paused");
+  const anyResumable = selectedList.some((t) => t.status === "paused" || t.status === "stopped" || t.status === "queued");
+  const anyPausable = selectedList.some((t) => t.status !== "paused" && t.status !== "stopped");
+  const anyStoppable = selectedList.some((t) => t.status !== "stopped");
   const anyRecheckable = selectedList.some((t) => t.status !== "checking" && t.status !== "connecting");
 
   btnResume.disabled = selectedList.length === 0 || !anyResumable;
   btnPause.disabled = selectedList.length === 0 || !anyPausable;
+  if (btnStop) btnStop.disabled = selectedList.length === 0 || !anyStoppable;
   btnRecheck.disabled = selectedList.length === 0 || !anyRecheckable;
   btnDelete.disabled = selectedList.length === 0;
   btnOpenFolder.disabled = !primary;
@@ -646,6 +662,8 @@ function updateCounts() {
   document.getElementById("count-seeding").textContent = torrents.filter((t) => t.status === "seeding").length;
   document.getElementById("count-completed").textContent = torrents.filter((t) => t.progress >= 100).length;
   document.getElementById("count-paused").textContent = torrents.filter((t) => t.status === "paused").length;
+  const countStoppedEl = document.getElementById("count-stopped");
+  if (countStoppedEl) countStoppedEl.textContent = torrents.filter((t) => t.status === "stopped").length;
   document.getElementById("count-active").textContent = torrents.filter(
     (t) => t.downloadSpeed > 0 || t.uploadSpeed > 0 || t.status === "checking"
   ).length;
@@ -1148,13 +1166,16 @@ torrentList.addEventListener("contextmenu", (e) => {
   const primary = torrents.find((t) => t.infoHash === hash) || selectedList[0];
   if (!primary) return;
 
-  const canResume = selectedList.some((t) => t.status === "paused" || t.status === "queued");
-  const canPause = selectedList.some((t) => t.status !== "paused");
+  const canResume = selectedList.some((t) => t.status === "paused" || t.status === "stopped" || t.status === "queued");
+  const canPause = selectedList.some((t) => t.status !== "paused" && t.status !== "stopped");
+  const canStop = selectedList.some((t) => t.status !== "stopped");
   const canRecheck = selectedList.some((t) => t.status !== "checking" && t.status !== "connecting");
   const canMoveQueue = selectedList.length === 1 && primary.status === "queued";
 
   contextMenu.querySelector('[data-action="resume"]').disabled = !canResume;
   contextMenu.querySelector('[data-action="pause"]').disabled = !canPause;
+  const ctxStopBtn = contextMenu.querySelector('[data-action="stop"]');
+  if (ctxStopBtn) ctxStopBtn.disabled = !canStop;
   contextMenu.querySelector('[data-action="recheck"]').disabled = !canRecheck;
   contextMenu.querySelector('[data-action="queue-top"]').disabled = !canMoveQueue;
   contextMenu.querySelector('[data-action="queue-up"]').disabled = !canMoveQueue;
@@ -1191,11 +1212,15 @@ contextMenu.addEventListener("click", async (e) => {
   contextMenu.classList.remove("active");
 
   if (action === "resume") {
-    const targets = selectedList.filter((t) => t.status === "paused" || t.status === "queued").map((t) => t.infoHash);
+    const targets = selectedList.filter((t) => t.status === "paused" || t.status === "stopped" || t.status === "queued").map((t) => t.infoHash);
     await runBulkAction(targets, (h) => fetch(`/api/torrents/${h}/resume`, { method: "POST" }));
   } else if (action === "pause") {
-    const targets = selectedList.filter((t) => t.status !== "paused").map((t) => t.infoHash);
+    const targets = selectedList.filter((t) => t.status !== "paused" && t.status !== "stopped").map((t) => t.infoHash);
     await runBulkAction(targets, (h) => fetch(`/api/torrents/${h}/pause`, { method: "POST" }));
+  } else if (action === "stop") {
+    const targets = selectedList.filter((t) => t.status !== "stopped").map((t) => t.infoHash);
+    await runBulkAction(targets, (h) => fetch(`/api/torrents/${h}/stop`, { method: "POST" }));
+    flashStatus(targets.length > 1 ? `Stopped ${targets.length} torrents` : "Torrent stopped (peers disconnected)");
   } else if (action === "recheck") {
     const targets = selectedList
       .filter((t) => t.status !== "checking" && t.status !== "connecting")
@@ -1307,7 +1332,7 @@ searchInput.addEventListener("input", (e) => {
 // Toolbar Bulk Actions
 btnResume.addEventListener("click", async () => {
   const targets = getSelectedTorrentsList()
-    .filter((t) => t.status === "paused" || t.status === "queued")
+    .filter((t) => t.status === "paused" || t.status === "stopped" || t.status === "queued")
     .map((t) => t.infoHash);
   if (targets.length === 0) return;
   await runBulkAction(targets, (h) => fetch(`/api/torrents/${h}/resume`, { method: "POST" }));
@@ -1315,11 +1340,22 @@ btnResume.addEventListener("click", async () => {
 
 btnPause.addEventListener("click", async () => {
   const targets = getSelectedTorrentsList()
-    .filter((t) => t.status !== "paused")
+    .filter((t) => t.status !== "paused" && t.status !== "stopped")
     .map((t) => t.infoHash);
   if (targets.length === 0) return;
   await runBulkAction(targets, (h) => fetch(`/api/torrents/${h}/pause`, { method: "POST" }));
 });
+
+if (btnStop) {
+  btnStop.addEventListener("click", async () => {
+    const targets = getSelectedTorrentsList()
+      .filter((t) => t.status !== "stopped")
+      .map((t) => t.infoHash);
+    if (targets.length === 0) return;
+    await runBulkAction(targets, (h) => fetch(`/api/torrents/${h}/stop`, { method: "POST" }));
+    flashStatus(targets.length > 1 ? `Stopped ${targets.length} torrents` : "Torrent stopped (peers disconnected)");
+  });
+}
 
 btnRecheck.addEventListener("click", async () => {
   const targets = getSelectedTorrentsList()
@@ -1335,6 +1371,14 @@ btnPauseAll.addEventListener("click", async () => {
   flashStatus("Paused all torrents");
   fetchTorrents();
 });
+
+if (btnStopAll) {
+  btnStopAll.addEventListener("click", async () => {
+    await fetch("/api/stop-all", { method: "POST" });
+    flashStatus("Stopped all torrents (peers disconnected)");
+    fetchTorrents();
+  });
+}
 
 btnResumeAll.addEventListener("click", async () => {
   await fetch("/api/resume-all", { method: "POST" });
@@ -1719,6 +1763,7 @@ const settingsSchedulerDown = document.getElementById("settings-scheduler-down")
 const settingsSchedulerUp = document.getElementById("settings-scheduler-up");
 const settingsSchedulerDaysEl = document.getElementById("settings-scheduler-days");
 const settingsMultiNetwork = document.getElementById("settings-multi-network");
+const settingsAutoStopSeeding = document.getElementById("settings-auto-stop-seeding");
 const settingsNotificationsEnabled = document.getElementById("settings-notifications-enabled");
 const settingsOnCompleteAction = document.getElementById("settings-on-complete-action");
 const settingsInterfacesList = document.getElementById("settings-interfaces-list");
@@ -1873,6 +1918,9 @@ async function openSettingsModal(initialTab = "general") {
     });
 
     settingsMultiNetwork.checked = Boolean(data.multiNetworkEnabled);
+    if (settingsAutoStopSeeding) {
+      settingsAutoStopSeeding.checked = Boolean(data.autoStopOnComplete);
+    }
     settingsNotificationsEnabled.checked = data.notificationsEnabled !== false;
     settingsOnCompleteAction.value = data.onCompleteAction || "none";
 
@@ -1960,6 +2008,7 @@ document.getElementById("modal-settings-save").addEventListener("click", async (
   const watchFolderAction = settingsWatchFolderAction.value || "rename";
   const watchFolderTag = settingsWatchFolderTag.value.trim();
   const notificationsEnabled = settingsNotificationsEnabled.checked;
+  const autoStopOnComplete = settingsAutoStopSeeding ? settingsAutoStopSeeding.checked : false;
   const onCompleteAction = settingsOnCompleteAction.value || "none";
 
   const scheduler = {
@@ -2001,6 +2050,7 @@ document.getElementById("modal-settings-save").addEventListener("click", async (
         maxConns,
         maxActiveDownloads,
         seedRatioLimit,
+        autoStopOnComplete,
         scheduler,
         multiNetworkEnabled,
         selectedInterfaces,

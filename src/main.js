@@ -96,11 +96,11 @@ const torrentManager = new TorrentManager({
   onAllComplete(action) {
     appLogger.info("Automation", `All downloads finished -> executing action "${action}"`);
     if (action === "pause-seeding") {
-      torrentManager.pauseAll().catch((err) => appLogger.error("AllComplete Pause Error", err.message, { alwaysConsole: true }));
+      torrentManager.stopAll().catch((err) => appLogger.error("AllComplete Stop Error", err.message, { alwaysConsole: true }));
     } else if (action === "exit") {
       setTimeout(() => cleanup(), 1500).unref?.();
     } else if (action === "sleep") {
-      torrentManager.pauseAll().catch(() => {}).finally(() => {
+      torrentManager.stopAll().catch(() => {}).finally(() => {
         setTimeout(() => sleepSystem(), 1500).unref?.();
       });
     }
