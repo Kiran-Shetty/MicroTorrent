@@ -4,13 +4,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import multer from "multer";
 import { WebSocketServer } from "ws";
-import { browseForFolder } from "./windowsHelpers.js";
+import { browseForFolder as defaultBrowseForFolder } from "./platformHelpers.js";
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const upload = multer({ storage: multer.memoryStorage() });
 
-export function createServer(torrentManager, port = 3456, onOpenWindowRequest = null, logger = null) {
+export function createServer(torrentManager, port = 3456, onOpenWindowRequest = null, logger = null, platformHooks = {}) {
   const appLogger = logger || torrentManager?.logger || null;
+  const browseForFolder = typeof platformHooks?.browseForFolder === "function"
+    ? platformHooks.browseForFolder
+    : defaultBrowseForFolder;
   const app = express();
   const server = http.createServer(app);
   const wss = new WebSocketServer({ server });

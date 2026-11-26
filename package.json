@@ -1,12 +1,20 @@
 {
   "name": "micro-torrent",
   "version": "1.0.0",
-  "description": "Clean, ad-free lightweight desktop BitTorrent client with System Tray & Magnet protocol association",
+  "description": "Clean, lightweight desktop BitTorrent client with System Tray, Multi-Network balancing & Magnet protocol association",
+  "author": "MicroTorrent",
+  "homepage": "https://github.com/Kiran-Shetty/MicroTorrent",
   "type": "module",
-  "main": "src/main.js",
+  "main": "electron/main.mjs",
   "scripts": {
     "start": "node src/main.js",
     "dev": "node src/main.js --dev --no-launch",
+    "electron": "electron .",
+    "electron:dev": "electron . --dev",
+    "dist": "electron-builder --publish never",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:linux": "electron-builder --linux --publish never",
     "register": "node scripts/register-protocol.mjs",
     "unregister": "node scripts/unregister-protocol.mjs"
   },
@@ -14,8 +22,105 @@
     "express": "^4.21.2",
     "multer": "^1.4.5-lts.1",
     "parse-torrent": "^11.0.24",
-    "systray2": "^2.1.8",
+    "systray2": "^2.1.4",
     "webtorrent": "^2.6.4",
     "ws": "^8.18.0"
+  },
+  "build": {
+    "appId": "com.microtorrent.desktop",
+    "productName": "MicroTorrent",
+    "npmRebuild": false,
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "protocols": [
+      {
+        "name": "BitTorrent Magnet",
+        "schemes": [
+          "magnet"
+        ]
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": "torrent",
+        "name": "BitTorrent File",
+        "mimeType": "application/x-bittorrent"
+      }
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.utilities",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Network;FileTransfer;P2P;",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.5.0",
+    "electron-builder": "^26.18.0"
   }
 }

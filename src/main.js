@@ -1,4 +1,3 @@
-import { spawn, exec } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
@@ -6,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import SysTray from "systray2";
 import { TorrentManager } from "./torrentManager.js";
 import { createServer } from "./server.js";
-import { showDesktopNotification, sleepSystem } from "./windowsHelpers.js";
+import { showDesktopNotification, sleepSystem, openUrlInBrowser } from "./platformHelpers.js";
 import { AppLogger, detectDevMode } from "./logger.js";
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -108,23 +107,7 @@ const torrentManager = new TorrentManager({
 });
 
 function launchDesktopWindow() {
-  const url = `http://localhost:${PORT}`;
-  const edgePath = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
-  const chromePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-
-  if (fs.existsSync(edgePath)) {
-    spawn(edgePath, [`--app=${url}`, "--window-size=1080,720"], {
-      detached: true,
-      stdio: "ignore"
-    }).unref();
-  } else if (fs.existsSync(chromePath)) {
-    spawn(chromePath, [`--app=${url}`, "--window-size=1080,720"], {
-      detached: true,
-      stdio: "ignore"
-    }).unref();
-  } else {
-    exec(`start ${url}`);
-  }
+  openUrlInBrowser(`http://localhost:${PORT}`);
 }
 
 const { server } = createServer(torrentManager, PORT, launchDesktopWindow, appLogger);
@@ -137,7 +120,8 @@ let lastTrayTooltip = "";
 
 function setupSystemTray() {
   try {
-    const iconPath = path.resolve(APP_ROOT, "public", "icon.ico");
+    const iconFile = process.platform === "win32" ? "icon.ico" : "logo.png";
+    const iconPath = path.resolve(APP_ROOT, "public", iconFile);
     let iconBase64 = "";
     if (fs.existsSync(iconPath)) {
       iconBase64 = fs.readFileSync(iconPath).toString("base64");
@@ -157,7 +141,7 @@ function setupSystemTray() {
         },
         {
           title: "Open Downloads Folder",
-          tooltip: "Open download folder in Windows Explorer",
+          tooltip: "Open downloads folder",
           checked: false,
           enabled: true
         },

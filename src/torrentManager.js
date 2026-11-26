@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import net from "node:net";
-import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import WebTorrent from "webtorrent";
 import parseTorrent from "parse-torrent";
 import { sanitizeFilePath, validateMagnetURI } from "./security.js";
 import { NetworkManager } from "./networkManager.js";
 import { AppLogger } from "./logger.js";
+import { openPathInExplorer } from "./platformHelpers.js";
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const POPCOUNT_LUT = Uint8Array.from({ length: 256 }, (_, n) => {
@@ -47,6 +47,7 @@ export class TorrentManager {
     this.logger = options.logger instanceof AppLogger ? options.logger : new AppLogger({ enabled: false });
     this.onTorrentComplete = typeof options.onTorrentComplete === "function" ? options.onTorrentComplete : null;
     this.onAllComplete = typeof options.onAllComplete === "function" ? options.onAllComplete : null;
+    this.openPathHandler = typeof options.openPathHandler === "function" ? options.openPathHandler : openPathInExplorer;
 
     this.settings = {
       downloadDir: this.downloadDir,
@@ -1698,12 +1699,7 @@ export class TorrentManager {
         }
       }
     }
-    execFile("explorer.exe", [target], (err) => {
-      // explorer.exe often exits with code 1 even when opening a window successfully
-      if (err && err.code !== 1) {
-        console.warn("[Open Folder Warning]", err.message);
-      }
-    });
+    this.openPathHandler(target);
   }
 
   /**

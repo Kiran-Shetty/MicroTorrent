@@ -1,66 +1,89 @@
-# MicroTorrent Desktop (Clean & Ad-Free)
+# MicroTorrent Desktop
 
-A clean, modern, lightweight BitTorrent desktop client inspired by classic µTorrent, built with **zero advertisements, zero telemetry, and zero bundled third-party offers**.
+A clean, modern, lightweight cross-platform BitTorrent desktop client for **Windows, macOS, and Linux** built with Node.js, WebTorrent, and Electron.
 
 ---
 
 ## Features
 
-- **Ad-Free & Private**: Pure BitTorrent functionality without sponsored offers, web promotions, or background tracking.
-- **Lightweight Desktop Window**: Runs as a standalone desktop application window using native OS WebView/Edge App Mode with minimal RAM usage.
+- **Cross-Platform Desktop App**: Native desktop installers for Windows (`.exe`), macOS (`.dmg`, `.zip` for Apple Silicon & Intel), and Linux (`.AppImage`, `.deb`), plus standalone Node.js mode.
 - **Full BitTorrent Engine**: Powered by WebTorrent supporting:
   - Magnet URI links (`magnet:?xt=urn:btih:...`)
-  - `.torrent` file uploads and direct drag-and-drop anywhere onto the window
-  - Mainline DHT (BEP 5) and Tracker communication
-  - Piece verification & SHA-1 integrity checks
-  - Pause, Resume, and Delete (with optional removal of downloaded files)
-- **Session Persistence**: Torrents and their states automatically persist across app restarts in `session.json`.
-- **Integrated File & Swarm Inspector**:
-  - Live download and upload speeds
-  - ETA calculation
-  - File-by-file progress breakdown for multi-file torrents
-  - Swarm connection stats
-  - One-click access to open files in Windows Explorer
+  - `.torrent` file uploads and direct drag-and-drop onto the window
+  - Mainline DHT (BEP 5), PeX, and Tracker communication
+  - Piece verification, sequential downloading, media streaming, and file-level selection/priority
+- **System Tray & Background Downloads**: Closing the window keeps downloads active in the system tray across Windows, macOS, and Linux.
+- **Multi-Network Interface Balancing**: Monitor and balance peer connections across multiple physical/VPN adapters.
+- **Session Persistence**: Torrents, settings, and download queues persist automatically in `session.json` and `settings.json`.
 
 ---
 
-## Quick Start
+## Quick Start (Development)
 
-### 1. Start the Desktop App
+```bash
+npm install
+```
 
-From this directory (`C:\Users\Kiran\IdeaProjects\torrent`):
+### Run as Electron Desktop App
+
+```bash
+npm run electron
+```
+
+### Run as Standalone Node.js Server / Web UI
 
 ```bash
 npm start
 ```
 
-This starts the local BitTorrent daemon and immediately opens the standalone desktop window.
-
-### 2. Headless / Browser-Only Mode
-
-If you only want the local server without launching a desktop window:
+Or headless without launching a browser window:
 
 ```bash
 npm run dev
 ```
 
-Then open your browser to `http://localhost:3456`.
+Then open `http://localhost:3456`.
+
+---
+
+## Building Multi-Platform Releases
+
+Build locally for your current OS:
+
+```bash
+npm run dist        # current OS
+npm run dist:win    # Windows (.exe NSIS + portable)
+npm run dist:mac    # macOS (.dmg + .zip, arm64 + x64)
+npm run dist:linux  # Linux (.AppImage + .deb)
+```
+
+### Automated GitHub Releases
+
+Pushing a version tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml) to build installers on `windows-latest`, `macos-latest`, and `ubuntu-latest` and attach them to a GitHub Release:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
 
 ---
 
 ## Project Structure
 
-```
-C:\Users\Kiran\IdeaProjects\torrent\
-├── downloads\            # Default destination for downloaded files
-├── public\               # Desktop Web UI
-│   ├── index.html        # App layout, tables, toolbar, modals
-│   ├── style.css         # Dark theme UI styling
-│   └── app.js            # WebSocket client and UI controllers
-├── src\
-│   ├── main.js           # App entry point & desktop window launcher
+```text
+├── build/                # Installer icon assets (icon.ico, icon.png)
+├── electron/
+│   └── main.mjs          # Electron main process, native tray, dialogs & single-instance lock
+├── public/               # Desktop Web UI (HTML, CSS, JS, logo.png, icon.ico)
+├── scripts/              # Standalone Node protocol registration helpers (Windows/Linux)
+├── src/
+│   ├── main.js           # Standalone Node.js entry point & systray2 launcher
 │   ├── server.js         # Express HTTP & WebSocket live metrics broadcaster
-│   └── torrentManager.js # BitTorrent engine lifecycle & session storage
-├── session.json          # Persistent torrent state
-└── package.json          # Dependencies (webtorrent, express, ws, multer)
+│   ├── torrentManager.js # BitTorrent engine lifecycle & session storage
+│   ├── networkManager.js # Multi-NIC balancing & speed sampling
+│   ├── platformHelpers.js# Cross-platform dialogs, notifications, sleep & folder open
+│   ├── logger.js         # Dev-mode rotating logger
+│   └── security.js       # Path traversal & magnet URI validation
+└── .github/workflows/
+    └── release.yml       # Cross-platform GitHub Actions build & release pipeline
 ```

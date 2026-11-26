@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MicroTorrent - Clean &amp; Ad-Free</title>
+  <title>MicroTorrent</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="icon" href="icon.ico">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,9 +14,8 @@
     <!-- Top Toolbar (Clean Controls & Search — No Duplicate Speed Readouts) -->
     <header class="toolbar">
       <div class="toolbar-brand">
-        <span class="logo-icon">&#x21C5;</span>
+        <img src="logo.png" alt="MicroTorrent" class="logo-img">
         <span class="brand-name">MicroTorrent</span>
-        <span class="badge-clean">Ad-Free</span>
       </div>
 
       <div class="toolbar-actions">
@@ -487,7 +488,7 @@
           <label for="settings-download-dir"><strong>Default Download Directory:</strong></label>
           <div style="display:flex; gap: 8px; margin-bottom: 8px;">
             <input type="text" id="settings-download-dir" class="settings-input mono">
-            <button class="btn" id="btn-browse-download-dir" title="Open Windows Folder Picker">Browse...</button>
+            <button class="btn" id="btn-browse-download-dir" title="Open Folder Picker">Browse...</button>
             <button class="btn" id="btn-reset-download-dir" title="Reset to project default downloads folder">Default</button>
           </div>
           <div class="settings-hint" style="margin-bottom: 10px;">
@@ -639,7 +640,7 @@
           </label>
           <label class="checkbox-label" style="margin-top: 0; margin-bottom: 14px;">
             <input type="checkbox" id="settings-notifications-enabled" checked>
-            <strong>Show Windows Desktop Notification when a download completes</strong>
+            <strong>Show Desktop Notification when a download completes</strong>
           </label>
 
           <label for="settings-on-complete-action"><strong>When All Downloads Complete:</strong></label>

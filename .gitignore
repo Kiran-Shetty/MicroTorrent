@@ -1,6 +1,7 @@
 node_modules/
 downloads/
 logs/
+dist/
 *.log
 session.json
 settings.json
