@@ -122,7 +122,7 @@ body {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -130,7 +130,7 @@ body {
   width: 1px;
   height: 20px;
   background-color: var(--border-color);
-  margin: 0 3px;
+  margin: 0 2px;
   flex-shrink: 0;
 }
 
@@ -138,13 +138,15 @@ body {
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 5px;
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
-  padding: 5px 10px;
+  padding: 5px 9px;
   border-radius: 5px;
   font-size: 12px;
+  line-height: 1.25;
   white-space: nowrap;
   flex-shrink: 0;
   cursor: pointer;
@@ -161,7 +163,7 @@ body {
 }
 
 .btn:disabled {
-  opacity: 0.4;
+  opacity: 0.48;
   cursor: not-allowed;
 }
 
@@ -192,7 +194,8 @@ body {
 }
 
 .btn-icon-only {
-  padding: 5px 9px;
+  min-width: 30px;
+  padding: 5px 8px;
   font-size: 13px;
 }
 
@@ -564,6 +567,7 @@ th.sortable:hover {
 
 .details-tabs {
   display: flex;
+  flex-wrap: wrap;
   background-color: var(--bg-primary);
   border-bottom: 1px solid var(--border-color);
 }
@@ -573,8 +577,9 @@ th.sortable:hover {
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--text-secondary);
-  padding: 8px 16px;
+  padding: 8px 14px;
   font-size: 12px;
+  white-space: nowrap;
   cursor: pointer;
   font-weight: 600;
 }
@@ -1024,6 +1029,7 @@ th.sortable:hover {
 /* Settings Modal Tabs */
 .settings-tabs {
   display: flex;
+  flex-wrap: wrap;
   background-color: var(--bg-primary);
   border-bottom: 1px solid var(--border-color);
   padding: 0 10px;
@@ -1037,6 +1043,7 @@ th.sortable:hover {
   padding: 9px 14px;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -1288,7 +1295,7 @@ th.sortable:hover {
 
 
 /* Compact desktop & laptop toolbar wrapping */
-@media (max-width: 1380px) {
+@media (max-width: 1460px) {
   .toolbar-brand {
     order: 1;
   }
@@ -1327,16 +1334,29 @@ th.sortable:hover {
 
   .toolbar-actions {
     order: 3;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    overflow-x: visible;
     width: 100%;
-    overflow-x: auto;
-    padding-bottom: 4px;
+    padding-bottom: 2px;
   }
 
   .toolbar-search {
     order: 4;
+    flex: 1 1 100%;
     max-width: 100%;
+    min-width: 0;
     width: 100%;
+    margin-left: 0;
+  }
+
+  .settings-grid-3,
+  .settings-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-preset-bar {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .workspace {
