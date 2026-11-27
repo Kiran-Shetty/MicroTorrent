@@ -158,9 +158,12 @@ export class NetworkManager {
 
   shouldBindMultiNetwork() {
     if (!this.multiNetworkEnabled) return false;
+    const all = this.refreshInterfaces();
     const active = this.getActiveAdapters();
-    // Bind when multi-network is enabled and either >= 2 adapters OR explicit adapter(s) selected
-    return active.length >= 2 || (active.length === 1 && this.selectedInterfaces.length > 0);
+    // Only bind localAddress / disable uTP when >= 2 adapters are active,
+    // or user explicitly chose 1 adapter out of multiple available adapters.
+    if (active.length >= 2) return true;
+    return active.length === 1 && this.selectedInterfaces.length > 0 && all.length >= 2;
   }
 
   _pickHealthyCandidate(candidates, indexKey) {

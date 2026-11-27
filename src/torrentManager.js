@@ -18,7 +18,11 @@ const POPCOUNT_LUT = Uint8Array.from({ length: 256 }, (_, n) => {
 
 export class TorrentManager {
   constructor(options = {}) {
-    this.defaultDownloadDir = path.resolve(APP_ROOT, "downloads");
+    this.defaultDownloadDir = options.defaultDownloadDir
+      ? path.resolve(APP_ROOT, options.defaultDownloadDir)
+      : options.downloadDir
+        ? path.resolve(APP_ROOT, options.downloadDir)
+        : path.resolve(APP_ROOT, "downloads");
     this.downloadDir = options.downloadDir
       ? path.resolve(APP_ROOT, options.downloadDir)
       : this.defaultDownloadDir;
@@ -964,13 +968,28 @@ export class TorrentManager {
           strategy: "sequential"
         };
 
+        const recordMetadataInit = (t) => {
+          const hash = t?.infoHash;
+          if (!hash) return false;
+          if (!this.torrentPaths.has(hash)) this.torrentPaths.set(hash, targetDir);
+          if (isExplicitCustom) this.torrentCustomPaths.add(hash);
+          if (!this.torrentAddedAt.has(hash)) {
+            this.torrentAddedAt.set(hash, options.addedAt || Date.now());
+          }
+          if (options.completedAt && !this.torrentCompletedAt.has(hash)) {
+            this.torrentCompletedAt.set(hash, options.completedAt);
+          }
+          if (cleanTag && !this.torrentTags.has(hash)) this.torrentTags.set(hash, cleanTag);
+          if ((deselectedInput || options.filePriorities) && !this.filePriorities.has(hash)) {
+            this._setFilePriorityMap(hash, deselectedInput, options.filePriorities);
+          }
+          return true;
+        };
+
         const torrent = this.client.add(torrentInput, opts, (t) => {
           this.logger.info("Torrent Added", `${t.name || t.infoHash} (${targetDir})`, { alwaysConsole: true });
+          recordMetadataInit(t);
           this.torrentPaths.set(t.infoHash, targetDir);
-          if (isExplicitCustom) this.torrentCustomPaths.add(t.infoHash);
-          if (!this.torrentAddedAt.has(t.infoHash)) {
-            this.torrentAddedAt.set(t.infoHash, options.addedAt || Date.now());
-          }
           if (options.completedAt) {
             this.torrentCompletedAt.set(t.infoHash, options.completedAt);
           }
@@ -979,17 +998,17 @@ export class TorrentManager {
             this._setFilePriorityMap(t.infoHash, deselectedInput, options.filePriorities);
           }
 
-          if (startStopped || this.stoppedTorrents.has(t.infoHash)) {
-            this.stoppedTorrents.add(t.infoHash);
+          if (this.stoppedTorrents.has(t.infoHash)) {
             this.pausedTorrents.add(t.infoHash);
             this._applyPauseState(t, { disconnectPeers: true });
-          } else if (startPaused || this.pausedTorrents.has(t.infoHash)) {
-            this.pausedTorrents.add(t.infoHash);
-            if (startQueued) this.queuedTorrents.add(t.infoHash);
+          } else if (this.pausedTorrents.has(t.infoHash)) {
             this._applyPauseState(t);
           } else {
             if (options.sequential) {
               this.sequentialTorrents.add(t.infoHash);
+            }
+            if (typeof t.resume === "function" && t.paused) {
+              t.resume();
             }
             this._applyActiveSelections(t);
           }
@@ -1007,15 +1026,7 @@ export class TorrentManager {
 
         torrent.once("_infoHash", () => {
           const hash = torrent.infoHash;
-          this.torrentPaths.set(hash, targetDir);
-          if (isExplicitCustom) this.torrentCustomPaths.add(hash);
-          if (!this.torrentAddedAt.has(hash)) {
-            this.torrentAddedAt.set(hash, options.addedAt || Date.now());
-          }
-          if (cleanTag) this.torrentTags.set(hash, cleanTag);
-          if (deselectedInput || options.filePriorities) {
-            this._setFilePriorityMap(hash, deselectedInput, options.filePriorities);
-          }
+          recordMetadataInit(torrent);
           if (startStopped) this.stoppedTorrents.add(hash);
           if (startPaused) this.pausedTorrents.add(hash);
           if (startQueued) this.queuedTorrents.add(hash);
@@ -1024,10 +1035,17 @@ export class TorrentManager {
         });
 
         torrent.once("metadata", () => {
-          if (startStopped || this.stoppedTorrents.has(torrent.infoHash)) {
+          const hash = torrent.infoHash;
+          recordMetadataInit(torrent);
+          if (this.stoppedTorrents.has(hash)) {
             this._applyPauseState(torrent, { disconnectPeers: true });
-          } else if (startPaused || this.pausedTorrents.has(torrent.infoHash)) {
+          } else if (this.pausedTorrents.has(hash)) {
             this._applyPauseState(torrent);
+          } else {
+            if (typeof torrent.resume === "function" && torrent.paused) {
+              torrent.resume();
+            }
+            this._applyActiveSelections(torrent);
           }
         });
 
@@ -1098,6 +1116,9 @@ export class TorrentManager {
         });
 
         const timer = setTimeout(() => {
+          if (recordMetadataInit(torrent)) {
+            this.saveSession();
+          }
           finish(this.serializeTorrent(torrent));
         }, 1500);
         timer.unref?.();
@@ -1556,14 +1577,12 @@ export class TorrentManager {
     if (!torrent || torrent.destroyed) return false;
 
     const hash = torrent.infoHash || infoHash;
-    const wasStopped = this.stoppedTorrents.has(hash);
     this.stoppedTorrents.delete(hash);
     this.pausedTorrents.delete(hash);
-    this.stoppedTorrents.delete(hash);
     this.queuedTorrents.delete(hash);
     torrent._startAsDeselected = false;
 
-    if (wasStopped && !torrent.discovery && typeof torrent._startDiscovery === "function") {
+    if (!torrent.discovery && typeof torrent._startDiscovery === "function") {
       try {
         torrent._startDiscovery();
       } catch (err) {
@@ -1577,6 +1596,9 @@ export class TorrentManager {
     for (const wire of torrent.wires || []) {
       try {
         wire.unchoke();
+        if (!torrent.metadata && wire.ut_metadata && typeof wire.ut_metadata.fetch === "function") {
+          wire.ut_metadata.fetch();
+        }
       } catch {}
     }
     if (typeof torrent._rechoke === "function") {

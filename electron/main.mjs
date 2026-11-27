@@ -246,6 +246,7 @@ if (gotSingleLock) {
 
     torrentManager = new TorrentManager({
       downloadDir: defaultDownloadDir,
+      defaultDownloadDir,
       sessionFile,
       settingsFile,
       logger: appLogger,

@@ -1858,15 +1858,19 @@ async function loadInterfacesChecklist(selectedNames) {
 
     settingsInterfacesList.innerHTML = interfaces
       .map((nic) => {
-        const checked = selectedSet.has(nic.name) ? "checked" : "";
+        const isAutoSelected = selectedSet.size === 0 && Boolean(nic.activeInPool);
+        const checked = selectedSet.has(nic.name) || isAutoSelected ? "checked" : "";
         const ipText = nic.ipv4 || nic.ipv6 || "No IP";
         const connText = `${nic.activeConnections} active`;
+        const activeTag = nic.activeInPool
+          ? ` <span class="interface-kind" style="color: var(--accent-green);">${isAutoSelected ? "Default" : "Active"}</span>`
+          : "";
         return `
           <label class="interface-row">
             <div class="interface-left">
               <input type="checkbox" class="nic-checkbox" value="${escapeHtml(nic.name)}" ${checked}>
               <div>
-                <div class="interface-name">${escapeHtml(nic.name)} <span class="interface-kind">${escapeHtml(nic.kind)}</span></div>
+                <div class="interface-name">${escapeHtml(nic.name)} <span class="interface-kind">${escapeHtml(nic.kind)}</span>${activeTag}</div>
                 <div class="settings-hint mono">${escapeHtml(ipText)}</div>
               </div>
             </div>
