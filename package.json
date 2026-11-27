@@ -2,7 +2,11 @@
   "name": "micro-torrent",
   "version": "1.0.0",
   "description": "Clean, lightweight desktop BitTorrent client with System Tray, Multi-Network balancing & Magnet protocol association",
-  "author": "MicroTorrent",
+  "author": {
+    "name": "Kiran Shetty",
+    "email": "Kiran-Shetty@users.noreply.github.com"
+  },
+  "desktopName": "microtorrent.desktop",
   "homepage": "https://github.com/Kiran-Shetty/MicroTorrent",
   "type": "module",
   "main": "electron/main.mjs",
@@ -107,6 +111,7 @@
     "linux": {
       "icon": "build/icon.png",
       "category": "Network;FileTransfer;P2P;",
+      "syncDesktopName": true,
       "target": [
         {
           "target": "AppImage",
