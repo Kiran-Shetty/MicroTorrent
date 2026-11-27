@@ -87,18 +87,20 @@ body {
 .toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
-  padding: 8px 14px;
-  gap: 10px;
-  height: 48px;
+  padding: 7px 14px;
+  gap: 8px 10px;
+  min-height: 48px;
 }
 
 .toolbar-brand {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-right: 12px;
+  margin-right: 6px;
+  flex-shrink: 0;
 }
 
 .logo-img {
@@ -119,14 +121,17 @@ body {
 .toolbar-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
 }
 
 .divider {
   width: 1px;
   height: 20px;
   background-color: var(--border-color);
-  margin: 0 4px;
+  margin: 0 3px;
+  flex-shrink: 0;
 }
 
 /* Buttons */
@@ -137,9 +142,11 @@ body {
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
-  padding: 5px 12px;
+  padding: 5px 10px;
   border-radius: 5px;
   font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease-out;
 }
@@ -223,8 +230,9 @@ body {
 }
 
 .toolbar-search {
-  flex: 1;
-  max-width: 220px;
+  flex: 1 1 190px;
+  min-width: 180px;
+  max-width: 240px;
   margin-left: auto;
 }
 
@@ -263,12 +271,15 @@ body {
 .workspace {
   display: flex;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
 /* Sidebar */
 .sidebar {
   width: 190px;
+  flex-shrink: 0;
+  min-height: 0;
   background-color: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
   display: flex;
@@ -346,6 +357,8 @@ body {
 /* Content Area */
 .content-area {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -354,7 +367,7 @@ body {
 
 .table-container {
   flex: 1;
-  overflow-y: auto;
+  overflow: auto;
   position: relative;
 }
 
@@ -1274,6 +1287,26 @@ th.sortable:hover {
 }
 
 
+/* Compact desktop & laptop toolbar wrapping */
+@media (max-width: 1380px) {
+  .toolbar-brand {
+    order: 1;
+  }
+
+  .toolbar-search {
+    order: 2;
+    flex: 0 1 240px;
+    min-width: 180px;
+  }
+
+  .toolbar-actions {
+    order: 3;
+    flex-basis: 100%;
+    width: 100%;
+    padding-top: 2px;
+  }
+}
+
 /* Mobile Responsiveness for Android & Small Displays */
 @media (max-width: 768px) {
   .toolbar {
@@ -1294,6 +1327,7 @@ th.sortable:hover {
 
   .toolbar-actions {
     order: 3;
+    flex-wrap: nowrap;
     width: 100%;
     overflow-x: auto;
     padding-bottom: 4px;
