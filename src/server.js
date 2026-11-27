@@ -1,4 +1,5 @@
 import express from "express";
+import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +8,13 @@ import { WebSocketServer } from "ws";
 import { browseForFolder as defaultBrowseForFolder } from "./platformHelpers.js";
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const APP_VERSION = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.resolve(APP_ROOT, "package.json"), "utf8")).version || "1.0.1";
+  } catch {
+    return "1.0.1";
+  }
+})();
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function createServer(torrentManager, port = 3456, onOpenWindowRequest = null, logger = null, platformHooks = {}) {
@@ -36,7 +44,7 @@ export function createServer(torrentManager, port = 3456, onOpenWindowRequest = 
   }
 
   app.get("/api/ping", (req, res) => {
-    res.json({ ok: true, version: "1.0.0", devMode: Boolean(appLogger?.enabled) });
+    res.json({ ok: true, version: APP_VERSION, devMode: Boolean(appLogger?.enabled) });
   });
 
   app.get("/api/logs", (req, res) => {

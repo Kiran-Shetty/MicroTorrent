@@ -1,6 +1,6 @@
 {
   "name": "micro-torrent",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Clean, lightweight desktop BitTorrent client with System Tray, Multi-Network balancing & Magnet protocol association",
   "author": {
     "name": "Kiran Shetty",
