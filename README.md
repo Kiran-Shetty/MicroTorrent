@@ -93,20 +93,6 @@ npm install
 
 ---
 
-## Building & Publishing Releases
-
-Automated multi-platform builds are configured in [`.github/workflows/release.yml`](.github/workflows/release.yml).
-
-- **Manual CI Build**: Trigger **Run workflow** (`workflow_dispatch`) from the GitHub **Actions** tab to build and inspect artifacts for `windows-latest`, `macos-latest`, and `ubuntu-latest`.
-- **Automated Release**: Push a version tag matching `v*` to build all platform installers and publish them automatically to a GitHub Release:
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
----
-
 ## Project Structure
 
 ```text
